@@ -27,7 +27,6 @@ class VideoDescriptionRealTime(object):
         self.save_model_path = config.save_model_path
         self.test_path = config.test_path
         self.search_type = config.search_type
-        self.num = 0
 
     def greedy_search(self, loaded_array):
         """
@@ -134,29 +133,17 @@ class VideoDescriptionRealTime(object):
         index_to_word = {value: key for key, value in self.tokenizer.word_index.items()}
         return index_to_word
 
-    def get_test_data(self):
-        # loads the features array
-        file_list = os.listdir(os.path.join(self.test_path, 'video'))
-        if ".DS_Store" in file_list:
-            file_list.remove(".DS_Store")
-        # with open(os.path.join(self.test_path, 'testing.txt')) as testing_file:
-            # lines = testing_file.readlines()
-        # file_name = lines[self.num].strip()
-        file_name = file_list[self.num]
-        path = os.path.join(self.test_path, 'feat', file_name + '.npy')
+    def get_test_data(self, filename):
+        path = f"{self.test_path}/feat/{filename}.npy"
         if os.path.exists(path):
             f = np.load(path)
         else:
             model = extract_features.model_cnn_load()
-            f = extract_features.extract_features(file_name, model)
-        if self.num < len(file_list):
-            self.num += 1
-        else:
-            self.num = 0
-        return f, file_name
+            f = extract_features.extract_features2(model, training_video_name=None, testing_video_name=filename)
+        return f
 
-    def test(self):
-        X_test, filename = self.get_test_data()
+    def test(self, filename):
+        X_test = self.get_test_data(filename)
         # generate inference test outputs
         if self.search_type == 'greedy':
             sentence_predicted = self.greedy_search(X_test.reshape((-1, 80, 4096)))
@@ -168,7 +155,7 @@ class VideoDescriptionRealTime(object):
                 sentence_predicted = sentence_predicted + d + ' '
         # re-init max prob
         self.max_probability = -1
-        return sentence_predicted, filename
+        return sentence_predicted
 
     def main(self, filename, caption):
         """
@@ -208,7 +195,8 @@ if __name__ == "__main__":
     video_to_text = VideoDescriptionRealTime(config)
     print('.........................\nGenerating Caption:\n')
     start = time.time()
-    video_caption, file = video_to_text.test()
+    filename = "P01_01_54.MP4"
+    video_caption = video_to_text.test(filename)
     end = time.time()
     sentence = ''
     print(sentence)
@@ -219,5 +207,5 @@ if __name__ == "__main__":
     print(sentence)
     print('\n.........................\n')
     print('It took {:.2f} seconds to generate caption'.format(end-start))
-    video_to_text.main(file, sentence)
+    video_to_text.main(filename, sentence)
     inp = input("Enter any key to finish: ")

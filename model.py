@@ -10,7 +10,7 @@ def inference_model():
     with open(os.path.join(config.save_model_path, 'tokenizer' + str(config.num_decoder_tokens)), 'rb') as file:
         tokenizer = joblib.load(file)
     # loading encoder model. This remains the same
-    inf_encoder_model = load_model(os.path.join(config.save_model_path, 'encoder_model.h5'))
+    inf_encoder_model = load_model(os.path.join(config.save_model_path, 'encoder_model.keras'))
 
     # inference decoder model loading
     decoder_inputs = Input(shape=(None, config.num_decoder_tokens))
@@ -25,7 +25,7 @@ def inference_model():
     inf_decoder_model = Model(
         [decoder_inputs] + decoder_states_inputs,
         [decoder_outputs] + decoder_states)
-    inf_decoder_model.load_weights(os.path.join(config.save_model_path, 'decoder_model_weights.h5'))
+    inf_decoder_model.load_weights(os.path.join(config.save_model_path, 'decoder_model_weights.keras'))
     return tokenizer, inf_encoder_model, inf_decoder_model
 
 

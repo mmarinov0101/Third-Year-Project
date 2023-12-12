@@ -12,6 +12,7 @@ from keras.preprocessing.text import Tokenizer
 from keras.utils import to_categorical
 import joblib
 import config
+import csv
 
 
 class VideoDescriptionTrain(object):
@@ -49,18 +50,23 @@ class VideoDescriptionTrain(object):
         Preprocessing the data
         dumps values of the json file into a list
         """
-        TRAIN_LABEL_PATH = os.path.join(self.train_path, 'training_label.json')
+        TRAIN_LABEL_PATH = "../epic_kitchens/annotations/training_data.csv"
+        rows = []
         with open(TRAIN_LABEL_PATH) as data_file:
-            y_data = json.load(data_file)
+            csvreader = csv.reader(data_file)
+            for row in csvreader:
+                rows.append(row)
+        rows = rows[:1500]
+        print(f"Length of input data: {len(rows)}---------------------------------------")
         train_list = []
         vocab_list = []
-        for y in y_data:
-            for caption in y['caption']:
-                caption = "<bos> " + caption + " <eos>"
-                if len(caption.split()) > 10 or len(caption.split()) < 6:
-                    continue
-                else:
-                    train_list.append([caption, y['id']])
+        for row in rows:
+            caption = "<bos> " + row[5] + " <eos>"
+            if len(caption.split()) > 12 or len(caption.split()) < 4:
+                continue
+            else:
+                train_list.append([caption, f"{row[2]}_{row[0]}.MP4"])
+        print(f"Example from train_list: [{train_list[0][0]}, {train_list[0][1]}]")
 
         random.shuffle(train_list)
         training_list = train_list[int(len(train_list) * self.validation_split):]
@@ -71,10 +77,16 @@ class VideoDescriptionTrain(object):
         self.tokenizer.fit_on_texts(vocab_list)
 
         TRAIN_FEATURE_DIR = os.path.join(self.train_path, 'feat')
-        for filename in os.listdir(TRAIN_FEATURE_DIR):
-            if filename != ".gitignore":
+        counter = 0 # used for experiment, delete later
+        for i, filename in enumerate(os.listdir(TRAIN_FEATURE_DIR)):
+            if counter == 1500:
+                break
+            print(f"Checking for file {i + 1}")
+            if filename != ".gitignore" and filename != ".DS_Store" and filename != "._.DS_Store" and filename != "._.gitignore":
                 f = np.load(os.path.join(TRAIN_FEATURE_DIR, filename), allow_pickle=True)
                 self.x_data[filename[:-4]] = f
+                counter += 1 #delete later
+        print("All .npy files were found!-----------------------------------------")
         return training_list, validation_list
 
     def load_dataset(self, training_list):
@@ -133,9 +145,13 @@ class VideoDescriptionTrain(object):
 
         model = Model([encoder_inputs, decoder_inputs], decoder_outputs)
         # model.summary()
+        print("Starting preprocessing--------------------------")
         training_list, validation_list = self.preprocessing()
+        print("Finished preprocessing-----------------------------------")
 
+        print("Starting load_dataset-----------------------------------------------")
         train = self.load_dataset(training_list)
+        print("Finished load_dataset-----------------------------------------------")
         valid = self.load_dataset(validation_list)
 
         early_stopping = EarlyStopping(monitor='val_loss', patience=4, verbose=1, mode='min')
@@ -149,10 +165,15 @@ class VideoDescriptionTrain(object):
 
         validation_steps = len(validation_list)//self.batch_size
         steps_per_epoch = len(training_list)//self.batch_size
+        
 
         model.fit(train, validation_data=valid, validation_steps=validation_steps,
                   epochs=self.epochs, steps_per_epoch=steps_per_epoch,
                   callbacks=[reduce_lr, early_stopping])
+
+        print("Saving model.................")
+        model.save(f"{self.save_model_path}/model_checkpoint.keras")
+        print("Model Saved!")
 
         if not os.path.exists(self.save_model_path):
             os.makedirs(self.save_model_path)
@@ -172,8 +193,8 @@ class VideoDescriptionTrain(object):
         # self.decoder_model.summary()
 
         # saving the models
-        self.encoder_model.save(os.path.join(self.save_model_path, 'encoder_model.h5'))
-        self.decoder_model.save_weights(os.path.join(self.save_model_path, 'decoder_model_weights.h5'))
+        self.encoder_model.save(os.path.join(self.save_model_path, 'encoder_model.keras'))
+        self.decoder_model.save_weights(os.path.join(self.save_model_path, 'decoder_model_weights.keras'))
         with open(os.path.join(self.save_model_path, 'tokenizer' + str(self.num_decoder_tokens)), 'wb') as file:
             joblib.dump(self.tokenizer, file)
 
